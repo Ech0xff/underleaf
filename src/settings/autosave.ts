@@ -1,7 +1,7 @@
 // Coalesce typing, serialize writes and suppress feedback from superseded edits.
 export function createAutoSave<T>(
   save: (value: T) => Promise<void>,
-  report: (error: unknown | null) => void,
+  report: (error: unknown) => void,
   delay = 350,
 ) {
   let pending: Readonly<{ value: T; revision: number }> | undefined;

@@ -22,7 +22,7 @@ Desktop only. Requires Obsidian 1.8.7 or later.
 ## Usage
 
 1. In plugin settings, choose a protocol, enter your API token and model, and select a translation language. Leave URL blank for the official service. For a custom service, enter only its origin, such as `http://localhost:11434`, without `/v1`.
-2. Open a note in **Reading view**, hover over a paragraph, and press `⌘⌥T` (macOS) or `Ctrl+Alt+T` (Windows/Linux) to translate or hide it. You can change the shortcut in Obsidian's Hotkeys settings.
+2. Assign a shortcut to **Underleaf: Translate / hide the paragraph under the pointer** in Obsidian's Hotkeys settings. Open a note in **Reading view**, hover over a paragraph, and press your shortcut to translate or hide it.
 3. Click the translation icon at the top of the note to translate visible paragraphs as you scroll. Turning it off cancels pending work and keeps completed translations.
 
 Settings save automatically. Custom prompts require `{{ __TEXT__ }}` and can use `{{ __LANG__ }}` for the target language; leave the prompt blank to use the default.

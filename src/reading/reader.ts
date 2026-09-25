@@ -1,4 +1,4 @@
-import { localize } from "../i18n.ts";
+import { errorMessage, localize } from "../i18n.ts";
 import { type Settings, validateSettings } from "../config.ts";
 import {
   type Block,
@@ -34,10 +34,11 @@ export function createReader(
   isCurrent: () => boolean,
   onFailure: (message: string) => void = () => {},
 ) {
+  const win = root.ownerDocument.defaultView!;
   const records = new Map<HTMLElement, RecordState>();
   const tasks = new Map<string, Task>();
   let stopped = false;
-  let scheduled: ReturnType<typeof setTimeout> | undefined;
+  let scheduled: number | undefined;
   let suppressed = new WeakSet<HTMLElement>();
   const alive = () => !stopped && isCurrent();
   const validRecord = (record: RecordState) =>
@@ -72,13 +73,7 @@ export function createReader(
         },
         (error) => {
           task.state = "failed";
-          if (current())
-            onFailure(
-              localize(
-                error instanceof Error ? error.message : "翻译失败，请重试。",
-                settings.uiLocale ?? "zh-CN",
-              ),
-            );
+          if (current()) onFailure(errorMessage(error, settings.uiLocale ?? "en"));
           throw error;
         },
       );
@@ -88,10 +83,10 @@ export function createReader(
   const render = async (record: RecordState) => {
     record.wrapper.className = "ul-translation ul-pending";
     record.wrapper.setAttribute("aria-busy", "true");
-    const spinner = root.ownerDocument.createElement("span");
-    spinner.className = "ul-spinner";
-    spinner.setAttribute("role", "status");
-    spinner.setAttribute("aria-label", localize("正在翻译", settings.uiLocale ?? "zh-CN"));
+    const spinner = record.wrapper.createSpan({
+      cls: "ul-spinner",
+      attr: { role: "status", "aria-label": localize("translating", settings.uiLocale ?? "en") },
+    });
     record.wrapper.replaceChildren(spinner);
     try {
       const text = await record.task.promise;
@@ -127,7 +122,7 @@ export function createReader(
     const record: RecordState = {
       block,
       signature: key,
-      wrapper: placeTranslation(block),
+      wrapper: placeTranslation(block, localize("translationLabel", settings.uiLocale ?? "en")),
       task,
       automatic,
     };
@@ -151,9 +146,9 @@ export function createReader(
         start(block.element, task.automatic, block);
     }
   };
-  const Observer = root.ownerDocument.defaultView!.MutationObserver;
+  const Observer = win.MutationObserver;
   const observer = new Observer((mutations) => {
-    if (mutations.some(isSourceMutation) && !scheduled) scheduled = setTimeout(prune, 30);
+    if (mutations.some(isSourceMutation) && !scheduled) scheduled = win.setTimeout(prune, 30);
   });
   observer.observe(root, {
     childList: true,
@@ -189,7 +184,7 @@ export function createReader(
     stop: () => {
       stopped = true;
       observer.disconnect();
-      clearTimeout(scheduled);
+      win.clearTimeout(scheduled);
       for (const r of records.values()) r.wrapper.remove();
       records.clear();
       tasks.clear();

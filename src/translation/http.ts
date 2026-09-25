@@ -1,4 +1,11 @@
-import { withTimeout } from "es-toolkit";
+import { assert, withTimeout } from "es-toolkit";
+import {
+  createLocalizedError,
+  isLocalizedError,
+  type LocalizedError,
+  type MessageKey,
+  type MessageParams,
+} from "../i18n.ts";
 
 export type HttpResponse = Readonly<{ status: number; json: unknown }>;
 export type Transport = (
@@ -6,44 +13,43 @@ export type Transport = (
   headers: Readonly<Record<string, string>>,
   body: string,
 ) => Promise<HttpResponse>;
-export class TranslationError extends Error {
-  readonly retryable: boolean;
-  readonly fatal: boolean;
-  constructor(message: string, retryable = false, fatal = false) {
-    super(message);
-    this.retryable = retryable;
-    this.fatal = fatal;
-  }
-}
+export type TranslationError = LocalizedError & Readonly<{ retryable: boolean; fatal: boolean }>;
+export const translationError = (
+  key: MessageKey,
+  retryable = false,
+  fatal = false,
+  params: MessageParams = {},
+): TranslationError => Object.assign(createLocalizedError(key, params), { retryable, fatal });
+export const isTranslationError = (error: unknown): error is TranslationError =>
+  isLocalizedError(error) &&
+  "retryable" in error &&
+  typeof error.retryable === "boolean" &&
+  "fatal" in error &&
+  typeof error.fatal === "boolean";
 
 export function checkHttpStatus(response: HttpResponse): void {
-  if (response.status === 401 || response.status === 403)
-    throw new TranslationError("认证失败，请检查 API Key 和模型权限。", false, true);
-  if (response.status === 429)
-    throw new TranslationError("服务请求受限或额度不足，请稍后重试。", true);
-  if (response.status >= 500)
-    throw new TranslationError(`服务暂时不可用（${response.status}）。`, true);
+  assert(
+    response.status !== 401 && response.status !== 403,
+    translationError("authenticationFailed", false, true),
+  );
+  assert(response.status !== 429, translationError("rateLimited", true));
+  assert(
+    response.status < 500,
+    translationError("serviceUnavailable", true, false, { status: response.status }),
+  );
   if (response.status === 404 || response.status === 400) {
     const errorBody = response.json as { error?: { message?: unknown } } | null;
-    if (
+    const modelUnavailable =
       typeof errorBody?.error?.message === "string" &&
       /model.{0,150}(not available|not found|does not exist|unavailable)/i.test(
         errorBody.error.message,
-      )
-    ) {
-      throw new TranslationError(
-        "服务报告该模型不可用。请更换模型 ID；模型列表中的名称也可能暂时无法调用。",
-        false,
-        true,
       );
-    }
+    assert(!modelUnavailable, translationError("modelUnavailable", false, true));
   }
-  if (response.status < 200 || response.status >= 300)
-    throw new TranslationError(
-      `请求失败（${response.status}），请检查服务地址和模型名称。`,
-      false,
-      response.status === 404,
-    );
+  assert(
+    response.status >= 200 && response.status < 300,
+    translationError("requestFailed", false, response.status === 404, { status: response.status }),
+  );
 }
 
 // Cancel the deadline timer on success or failure; Obsidian cannot abort the request itself.

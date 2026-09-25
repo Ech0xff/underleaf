@@ -56,10 +56,8 @@ export function collectBlocks(root: HTMLElement): readonly Block[] {
     .filter((block) => isTranslatable(block.source));
 }
 
-export function placeTranslation(block: Block): HTMLElement {
-  const el = block.element.ownerDocument.createElement("div");
-  el.className = "ul-translation";
-  el.setAttribute("aria-label", "Underleaf translation");
+export function placeTranslation(block: Block, label: string): HTMLElement {
+  const el = block.element.createDiv({ cls: "ul-translation", attr: { "aria-label": label } });
   if (block.inside) {
     const list = Array.from(block.element.children).find((child) => child.matches("ul,ol"));
     block.element.insertBefore(el, list ?? null);

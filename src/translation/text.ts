@@ -1,3 +1,4 @@
+import { createLocalizedError } from "../i18n.ts";
 import { providerConfig, validatePromptTemplate, type Settings } from "../config.ts";
 
 export const promptVersion = 7;
@@ -46,11 +47,11 @@ export async function digest(input: string): Promise<string> {
 export const tokensIn = (text: string): readonly string[] => text.match(/⟪UL_KEEP_\d+⟫/g) ?? [];
 export function validateTranslation(source: string, translated: string): string {
   const value = translated.trim();
-  assert(value, "服务返回了空译文，请检查模型是否支持文字生成。");
+  assert(value, createLocalizedError("translationEmpty"));
   const occurrences = (text: string) => countBy(tokensIn(text), (token) => token);
   assert(
     isEqual(occurrences(source), occurrences(value)),
-    "译文未完整保留代码或公式，已阻止显示。请重试或更换模型。",
+    createLocalizedError("placeholdersChanged"),
   );
   return value;
 }
@@ -62,7 +63,7 @@ export const isTranslatable = (source: string): boolean => {
 
 // Preserve sentence boundaries where possible, but never split an inline-code/math token.
 export function splitText(source: string, limit = 3500): readonly string[] {
-  assert(Number.isInteger(limit) && limit >= 2, "Text limit must be an integer of at least 2.");
+  assert(Number.isInteger(limit) && limit >= 2, createLocalizedError("textLimitInvalid"));
   if (source.length <= limit) return [source];
   const atoms = source.match(/⟪UL_KEEP_\d+⟫|[^⟪]+|⟪/g) ?? [source];
   const result: string[] = [];

@@ -56,7 +56,9 @@ th > .ul-translation {
   gap: 18px;
 }
 .ul-settings .ul-section {
-  display: contents;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 .ul-settings .ul-row {
   flex-direction: column;

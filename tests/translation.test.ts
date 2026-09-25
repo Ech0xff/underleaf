@@ -76,7 +76,7 @@ describe("endpoint and output integrity", () => {
   it("maps HTTP failures without exposing response bodies", () => {
     assert.throws(
       () => checkHttpStatus({ status: 401, json: { error: "private response" } }),
-      /认证失败/,
+      /Authentication failed/,
     );
     assert.throws(
       () =>
@@ -84,7 +84,7 @@ describe("endpoint and output integrity", () => {
           status: 404,
           json: { error: { message: "Model x is not available" } },
         }),
-      /模型不可用/,
+      /model is unavailable/,
     );
   });
 });

@@ -10,13 +10,13 @@ export function createViewportTranslator(
   let enabled = false;
   let intersection: IntersectionObserver | undefined;
   let mutations: MutationObserver | undefined;
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+  let timer: number | undefined;
+  let refreshTimer: number | undefined;
   const observed = new Set<HTMLElement>();
   const visible = new Set<HTMLElement>();
   const schedule = () => {
-    clearTimeout(timer);
-    timer = setTimeout(() => {
+    win.clearTimeout(timer);
+    timer = win.setTimeout(() => {
       if (!enabled || !isCurrent()) return;
       for (const element of visible) if (root.contains(element)) reader.ensure(element);
     }, 150);
@@ -42,8 +42,8 @@ export function createViewportTranslator(
     enabled = false;
     intersection?.disconnect();
     mutations?.disconnect();
-    clearTimeout(timer);
-    clearTimeout(refreshTimer);
+    win.clearTimeout(timer);
+    win.clearTimeout(refreshTimer);
     refreshTimer = undefined;
     observed.clear();
     visible.clear();
@@ -80,7 +80,7 @@ export function createViewportTranslator(
       );
       mutations = new win.MutationObserver((entries) => {
         const sourceChanged = entries.some(isSourceMutation);
-        if (sourceChanged && !refreshTimer) refreshTimer = setTimeout(refresh, 80);
+        if (sourceChanged && !refreshTimer) refreshTimer = win.setTimeout(refresh, 80);
       });
       mutations.observe(root, {
         childList: true,

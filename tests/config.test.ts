@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { defaultConfig, normalizeConfig, validateConfig } from "../src/config.ts";
+import { createLocalizedError, errorMessage, localize, resolveLocale } from "../src/i18n.ts";
 
 describe("saved settings", () => {
   it("migrates the selected provider without losing credentials or preferences", () => {
@@ -62,7 +63,10 @@ describe("saved settings", () => {
       ...defaultConfig,
       endpoint: "https://example.com/v1",
     });
-    assert.throws(() => validateConfig(config), /URL/);
+    assert.throws(
+      () => validateConfig(config),
+      (error) => errorMessage(error, "en") === localize("urlPathNotAllowed", "en"),
+    );
   });
 
   it("recovers malformed settings while bounding request limits", () => {
@@ -91,5 +95,28 @@ describe("saved settings", () => {
       { systemPromptTemplate: "Missing source" },
     ])
       assert.throws(() => validateConfig({ ...defaultConfig, ...patch }));
+  });
+});
+
+describe("interface language", () => {
+  it("follows Obsidian unless the user explicitly chooses a language", () => {
+    assert.equal(resolveLocale("auto", "zh-TW"), "zh-CN");
+    assert.equal(resolveLocale("auto", "fr"), "en");
+    assert.equal(resolveLocale("en", "zh-CN"), "en");
+    assert.equal(resolveLocale("zh-CN", "en"), "zh-CN");
+  });
+
+  it("renders errors in the current language and keeps unknown service errors private", () => {
+    const error = createLocalizedError("serviceUnavailable", { status: 503 });
+    assert.equal(errorMessage(error, "en"), "Service temporarily unavailable (503).");
+    assert.equal(errorMessage(error, "zh-CN"), "服务暂时不可用（503）。");
+    assert.equal(
+      errorMessage(new Error("Private service response"), "en", "connectionFailed"),
+      "Connection failed",
+    );
+    assert.equal(
+      localize("labeledStatus", "en", { label: "Status", detail: "$& {status}" }),
+      "Status: $& {status}",
+    );
   });
 });

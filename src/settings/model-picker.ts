@@ -4,7 +4,7 @@ type PickerOptions = {
   fetch: () => Promise<readonly string[]>;
   identity: () => string;
   onSelect: (value: string) => void;
-  error: (message: string) => void;
+  error: (error: unknown) => void;
 };
 export function attachModelPicker(
   parent: HTMLElement,
@@ -122,12 +122,12 @@ export function attachModelPicker(
   parent.closest(".ul-page")?.addEventListener("input", (event) => {
     if (event.target !== input && models.length) valid();
   });
-  fetchButton.addEventListener("click", async () => {
+  const loadModels = async () => {
     if (fetchButton.disabled) return;
     const snapshot = options.identity();
     fetchButton.disabled = true;
     fetchButton.setAttribute("aria-busy", "true");
-    options.error("");
+    options.error(null);
     close();
     const spinner = fetchButton.createSpan({
       cls: "ul-spinner",
@@ -143,14 +143,14 @@ export function attachModelPicker(
       input.focus();
       open(true);
     } catch (error) {
-      if (input.isConnected && snapshot === options.identity())
-        options.error(
-          error instanceof Error ? error.message : "获取模型失败，请检查网络或稍后重试。",
-        );
+      if (input.isConnected && snapshot === options.identity()) options.error(error);
     } finally {
       spinner.remove();
       fetchButton.disabled = false;
       fetchButton.setAttribute("aria-busy", "false");
     }
+  };
+  fetchButton.addEventListener("click", () => {
+    void loadModels();
   });
 }

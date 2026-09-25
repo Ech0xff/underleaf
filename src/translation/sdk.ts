@@ -1,3 +1,4 @@
+import { createLocalizedError } from "../i18n.ts";
 import { generateText } from "ai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { createAnthropic } from "@ai-sdk/anthropic";
@@ -18,10 +19,13 @@ export function createSdkGenerator(transport: Transport) {
       if (init?.signal?.aborted) throw new DOMException("Aborted", "AbortError");
       const url =
         typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-      assert(new URL(url).origin === new URL(config.baseURL).origin, "Unexpected provider origin");
+      assert(
+        new URL(url).origin === new URL(config.baseURL).origin,
+        createLocalizedError("providerOriginInvalid"),
+      );
       assert(
         init?.method === "POST" && typeof init.body === "string",
-        "Unsupported provider request",
+        createLocalizedError("providerRequestInvalid"),
       );
       const headers = Object.fromEntries(new Headers(init.headers).entries());
       const response = await transport(url, headers, init.body);

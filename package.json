@@ -1,6 +1,6 @@
 {
   "name": "underleaf",
-  "version": "0.4.9",
+  "version": "0.4.10",
   "private": true,
   "description": "Translate paragraphs beneath the original text in Reading view, using your preferred AI service without changing your notes.",
   "homepage": "https://github.com/Ech0xff/underleaf",

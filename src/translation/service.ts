@@ -1,5 +1,13 @@
+import { createLocalizedError, isLocalizedError } from "../i18n.ts";
 import { assert, clamp, isPlainObject, reduceAsync, retry, sumBy, TimeoutError } from "es-toolkit";
-import { checkHttpStatus, TranslationError, withDeadline, type Transport } from "./http.ts";
+import {
+  checkHttpStatus,
+  translationError,
+  isTranslationError,
+  withDeadline,
+  type TranslationError,
+  type Transport,
+} from "./http.ts";
 import { APICallError } from "ai";
 import { defaultConfig, type Settings } from "../config.ts";
 import { cacheIdentity, digest, splitText, validateTranslation } from "./text.ts";
@@ -29,7 +37,7 @@ export function createService(transport: Transport, onCacheChanged: () => void) 
     while (active < concurrency && pending.length) {
       const job = pending.shift()!;
       if (disposed || !job.alive()) {
-        job.reject(new Error("已停止"));
+        job.reject(createLocalizedError("stopped"));
         continue;
       }
       if (fatal) {
@@ -40,7 +48,7 @@ export function createService(transport: Transport, onCacheChanged: () => void) 
       void job
         .run()
         .then(job.resolve, (error) => {
-          if (error instanceof TranslationError && error.fatal) fatal = error;
+          if (isTranslationError(error) && error.fatal) fatal = error;
           job.reject(error);
         })
         .finally(() => {
@@ -63,26 +71,25 @@ export function createService(transport: Transport, onCacheChanged: () => void) 
     try {
       return await retry(
         async () => {
-          assert(!disposed && alive(), new TranslationError("已停止"));
+          assert(!disposed && alive(), translationError("stopped"));
           const result = await withDeadline(() => generate(source, settings), settings.timeoutMs);
-          assert(!result.truncated, new TranslationError("模型输出被截断，请更换模型或缩短段落。"));
+          assert(!result.truncated, translationError("outputTruncated"));
           return validateTranslation(source, result.text);
         },
         {
           retries: 1,
           delay: 1500,
-          shouldRetry: (error) => error instanceof TranslationError && error.retryable,
+          shouldRetry: (error) => isTranslationError(error) && error.retryable,
         },
       );
     } catch (error) {
       // Do not show server bodies or transport errors that may contain sensitive headers.
-      if (error instanceof TranslationError) throw error;
-      if (error instanceof TimeoutError)
-        throw new TranslationError("请求超时，请检查网络或增加超时时间。");
-      if (error instanceof Error && /代码或公式|空译文/.test(error.message)) throw error;
+      if (isTranslationError(error)) throw error;
+      if (error instanceof TimeoutError) throw translationError("requestTimeout");
+      if (isLocalizedError(error)) throw error;
       if (APICallError.isInstance(error) && error.statusCode === 200)
-        throw new TranslationError("服务返回格式不兼容，请确认域名和模型支持所选协议。");
-      throw new TranslationError("无法连接翻译服务，请检查网络、服务地址和证书。");
+        throw translationError("responseIncompatible");
+      throw translationError("networkFailed");
     }
   };
 
@@ -92,7 +99,7 @@ export function createService(transport: Transport, onCacheChanged: () => void) 
     alive: () => boolean,
   ): Promise<string> => {
     const key = await digest(cacheIdentity(settings, source));
-    if (!alive() || disposed) throw new Error("已停止");
+    if (!alive() || disposed) throw createLocalizedError("stopped");
     if (settings.cache && cache.has(key)) return cache.get(key)!.text;
     // Completed/active requests are shared only through cache; each view owns its pending tasks.
     return enqueue(async () => {
@@ -134,9 +141,9 @@ export function createService(transport: Transport, onCacheChanged: () => void) 
       if (!Array.isArray(entries)) return;
       entries
         .slice(-1000)
-        .filter(isPlainObject)
         .filter(
-          (entry) =>
+          (entry: unknown): entry is CacheEntry =>
+            isPlainObject(entry) &&
             typeof entry.key === "string" &&
             /^[a-f0-9]{64}$/.test(entry.key) &&
             typeof entry.text === "string" &&
@@ -146,7 +153,7 @@ export function createService(transport: Transport, onCacheChanged: () => void) 
     },
     dispose: () => {
       disposed = true;
-      pending.splice(0).forEach((job) => job.reject(new Error("已停止")));
+      pending.splice(0).forEach((job) => job.reject(createLocalizedError("stopped")));
     },
   };
 }

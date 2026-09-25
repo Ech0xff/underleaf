@@ -1,3 +1,4 @@
+import { createLocalizedError } from "./i18n.ts";
 import { assert, attempt, clamp, isPlainObject } from "es-toolkit";
 import type { UILanguage, UILocale } from "./i18n.ts";
 
@@ -49,24 +50,21 @@ const normalizeSettings = (value: Record<string, unknown>): Settings => ({
 
 export function serviceOrigin(input: string): string {
   const value = input.trim();
-  assert(
-    /^https?:\/\//i.test(value),
-    "URL 必须以 https:// 或 http:// 开头，例如 https://api.example.com。",
-  );
+  assert(/^https?:\/\//i.test(value), createLocalizedError("urlSchemeRequired"));
   const [, url] = attempt(() => new URL(value));
-  assert(url, "请填写有效域名，例如 https://api.example.com。");
+  assert(url, createLocalizedError("urlInvalid"));
   assert(
     ["https:", "http:"].includes(url.protocol) &&
       !url.username &&
       !url.password &&
       !url.search &&
       !url.hash,
-    "URL 只接受 HTTP(S) 域名，不能包含账号、查询参数或 #。",
+    createLocalizedError("urlOriginOnly"),
   );
-  assert(url.pathname === "/", "URL 只填域名，请去掉 /v1 等路径；插件会自动补齐接口地址。");
+  assert(url.pathname === "/", createLocalizedError("urlPathNotAllowed"));
   assert(
     url.hostname.includes(".") || url.hostname.includes(":") || url.hostname === "localhost",
-    "请填写有效的服务域名。",
+    createLocalizedError("urlHostInvalid"),
   );
   return url.origin;
 }
@@ -88,15 +86,15 @@ export function providerConfig(
 
 export function validateSettings(settings: Settings): void {
   providerConfig(settings.endpoint, settings.providerType);
-  assert(settings.model, "请先填写模型名称。");
-  assert(settings.target, "请先填写目标语言。");
+  assert(settings.model, createLocalizedError("modelRequired"));
+  assert(settings.target, createLocalizedError("targetRequired"));
   validatePromptTemplate(settings.systemPromptTemplate);
 }
 
 export function validatePromptTemplate(template: string): void {
   assert(
     !template.trim() || /\{\{\s*__TEXT__\s*\}\}/.test(template),
-    "自定义系统提示词必须包含 {{ __TEXT__ }}，用于插入原文。",
+    createLocalizedError("promptSourceRequired"),
   );
 }
 
@@ -155,13 +153,13 @@ export function normalizeConfig(input: unknown): AppConfig {
 export function validateConfig(config: AppConfig): void {
   assert(
     Number.isInteger(config.concurrency) && config.concurrency >= 1 && config.concurrency <= 8,
-    "并发数须为 1–8 的整数。",
+    createLocalizedError("concurrencyInvalid"),
   );
   assert(
     Number.isFinite(config.timeoutMs) && config.timeoutMs >= 5000 && config.timeoutMs <= 120000,
-    "超时须为 5–120 秒。",
+    createLocalizedError("timeoutInvalid"),
   );
   if (config.endpoint) serviceOrigin(config.endpoint);
-  assert(config.target.trim(), "请先填写目标语言。");
+  assert(config.target.trim(), createLocalizedError("targetRequired"));
   validatePromptTemplate(config.systemPromptTemplate);
 }

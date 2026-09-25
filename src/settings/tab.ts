@@ -1,4 +1,10 @@
-import { localize, resolveLocale, type UILanguage } from "../i18n.ts";
+import {
+  errorMessage,
+  localize,
+  resolveLocale,
+  type MessageKey,
+  type UILanguage,
+} from "../i18n.ts";
 import { PluginSettingTab, Setting, setIcon } from "obsidian";
 import type UnderleafPlugin from "../main.ts";
 import { type AppConfig, normalizeConfig, officialOrigin, type ProviderType } from "../config.ts";
@@ -20,22 +26,18 @@ export function createSettingsTab(plugin: UnderleafPlugin): PluginSettingTab {
   })(plugin.app, plugin);
   const autosave = createAutoSave<AppConfig>(
     (value) => plugin.applyConfig(value),
-    (error) =>
-      notify(
-        error instanceof Error ? error.message : error ? "保存设置失败，请重试。" : "",
-        !!error,
-      ),
+    (error) => notify(error ? errorMessage(error, locale(), "saveSettingsFailed") : "", !!error),
   );
   plugin.register(() => {
     void autosave.flush();
     autosave.dispose();
   });
-  const translateLabel = (text: string) =>
-    localize(text, resolveLocale(draft.uiLanguage, plugin.appLanguage));
+  const locale = () => resolveLocale(draft.uiLanguage, plugin.appLanguage);
+  const translateLabel = (key: MessageKey) => localize(key, locale());
   function notify(text: string, error = false) {
     const el = tab.containerEl.querySelector<HTMLElement>(".ul-settings-feedback");
     if (el) {
-      el.textContent = translateLabel(text);
+      el.textContent = text;
       el.classList.toggle("ul-settings-error", error);
     }
   }
@@ -55,7 +57,7 @@ export function createSettingsTab(plugin: UnderleafPlugin): PluginSettingTab {
     }
     render();
   }
-  function row(el: HTMLElement, name: string): Setting {
+  function row(el: HTMLElement, name: MessageKey): Setting {
     const row = new Setting(el).setName(translateLabel(name)).setClass("ul-row");
     row.nameEl.addClass("ul-label");
     row.controlEl.addClass("ul-control");
@@ -69,7 +71,7 @@ export function createSettingsTab(plugin: UnderleafPlugin): PluginSettingTab {
     new Setting(el).setName("Underleaf").setHeading().setClass("ul-settings-header");
     const panel = el.createDiv({
       cls: "ul-page",
-      attr: { "aria-label": translateLabel("Underleaf 设置") },
+      attr: { "aria-label": translateLabel("settingsLabel") },
     });
     const group = panel.createDiv({ cls: "ul-settings-group" });
     panel.createDiv({ cls: "ul-settings-feedback", attr: { role: "status" } });
@@ -92,10 +94,10 @@ export function createSettingsTab(plugin: UnderleafPlugin): PluginSettingTab {
       "العربية",
     ];
     const isCustom = customTarget || !targets.includes(draft.target);
-    row(el, "翻译语言").addDropdown((d) => {
-      d.selectEl.setAttribute("aria-label", translateLabel("翻译语言"));
+    row(el, "targetLanguage").addDropdown((d) => {
+      d.selectEl.setAttribute("aria-label", translateLabel("targetLanguage"));
       for (const target of targets) d.addOption(target, target);
-      d.addOption("__custom", translateLabel("自定义"))
+      d.addOption("__custom", translateLabel("custom"))
         .setValue(isCustom ? "__custom" : draft.target)
         .onChange((value) => {
           customTarget = value === "__custom";
@@ -104,9 +106,9 @@ export function createSettingsTab(plugin: UnderleafPlugin): PluginSettingTab {
         });
     });
     if (isCustom)
-      row(el, "自定义语言").addText((t) => {
-        t.inputEl.setAttribute("aria-label", translateLabel("自定义语言"));
-        t.setPlaceholder(translateLabel("例如：Italiano"))
+      row(el, "customLanguage").addText((t) => {
+        t.inputEl.setAttribute("aria-label", translateLabel("customLanguage"));
+        t.setPlaceholder(translateLabel("customLanguageExample"))
           .setValue(draft.target)
           .onChange((target) => {
             updateDraft({ target });
@@ -114,9 +116,9 @@ export function createSettingsTab(plugin: UnderleafPlugin): PluginSettingTab {
             if (area) area.placeholder = defaultPromptTemplate(draft);
           });
       });
-    row(el, "界面语言").addDropdown((d) => {
-      d.selectEl.setAttribute("aria-label", translateLabel("界面语言"));
-      d.addOption("auto", translateLabel("跟随 Obsidian"))
+    row(el, "interfaceLanguage").addDropdown((d) => {
+      d.selectEl.setAttribute("aria-label", translateLabel("interfaceLanguage"));
+      d.addOption("auto", translateLabel("followObsidian"))
         .addOption("zh-CN", "简体中文")
         .addOption("en", "English");
       d.setValue(draft.uiLanguage).onChange((uiLanguage) => {
@@ -127,8 +129,8 @@ export function createSettingsTab(plugin: UnderleafPlugin): PluginSettingTab {
     const promptSection = parent.createDiv({
       cls: "ul-section",
     });
-    row(promptSection, "自定义系统提示词").addTextArea((t) => {
-      t.inputEl.setAttribute("aria-label", translateLabel("自定义系统提示词"));
+    row(promptSection, "customPrompt").addTextArea((t) => {
+      t.inputEl.setAttribute("aria-label", translateLabel("customPrompt"));
       t.setPlaceholder(defaultPromptTemplate(draft))
         .setValue(draft.systemPromptTemplate)
         .onChange((systemPromptTemplate) => {
@@ -136,26 +138,26 @@ export function createSettingsTab(plugin: UnderleafPlugin): PluginSettingTab {
         });
     });
     el = parent.createDiv({ cls: "ul-section" });
-    row(el, "请求并发数").addText((t) => {
+    row(el, "concurrency").addText((t) => {
       t.inputEl.type = "number";
       t.inputEl.min = "1";
       t.inputEl.max = "8";
       t.inputEl.step = "1";
-      t.inputEl.setAttribute("aria-label", translateLabel("请求并发数"));
+      t.inputEl.setAttribute("aria-label", translateLabel("concurrency"));
       t.setValue(String(draft.concurrency)).onChange((v) => {
         updateDraft({ concurrency: Number(v) });
       });
     });
-    row(el, "超时（秒）").addText((t) => {
+    row(el, "timeoutSeconds").addText((t) => {
       t.inputEl.type = "number";
       t.inputEl.min = "5";
       t.inputEl.max = "120";
-      t.inputEl.setAttribute("aria-label", translateLabel("超时（秒）"));
+      t.inputEl.setAttribute("aria-label", translateLabel("timeoutSeconds"));
       t.setValue(String(draft.timeoutMs / 1000)).onChange((v) => {
         updateDraft({ timeoutMs: Number(v) * 1000 });
       });
     });
-    row(el, "保存译文缓存").addToggle((t) =>
+    row(el, "cacheTranslations").addToggle((t) =>
       t.setValue(draft.cache).onChange((v) => {
         updateDraft({ cache: v });
       }),
@@ -164,9 +166,9 @@ export function createSettingsTab(plugin: UnderleafPlugin): PluginSettingTab {
   function renderConnection(parent: HTMLElement) {
     const el = parent.createDiv({ cls: "ul-section" });
     const provider = draft;
-    row(el, "接口类型").addDropdown((d) => {
-      d.selectEl.setAttribute("aria-label", translateLabel("接口类型"));
-      d.addOption("compatible", translateLabel("OpenAI 兼容"))
+    row(el, "protocol").addDropdown((d) => {
+      d.selectEl.setAttribute("aria-label", translateLabel("protocol"));
+      d.addOption("compatible", translateLabel("openAICompatible"))
         .addOption("anthropic", "Anthropic")
         .addOption("google", "Google Gemini");
       d.setValue(provider.providerType).onChange((type) => {
@@ -174,38 +176,39 @@ export function createSettingsTab(plugin: UnderleafPlugin): PluginSettingTab {
         render();
       });
     });
-    row(el, "URL").addText((t) => {
-      t.inputEl.setAttribute("aria-label", translateLabel("URL"));
+    row(el, "url").addText((t) => {
+      t.inputEl.setAttribute("aria-label", translateLabel("url"));
       t.setPlaceholder(officialOrigin(provider.providerType))
         .setValue(provider.endpoint)
         .onChange((url) => updateDraft({ endpoint: url }));
     });
-    row(el, "Token").addText((t) => {
+    row(el, "apiToken").addText((t) => {
       t.inputEl.type = "password";
       t.inputEl.autocomplete = "off";
-      t.inputEl.setAttribute("aria-label", translateLabel("Token"));
+      t.inputEl.setAttribute("aria-label", translateLabel("apiToken"));
       t.setValue(provider.apiKey).onChange((token) => updateDraft({ apiKey: token }));
     });
-    const modelRow = row(el, "模型");
+    const modelRow = row(el, "model");
     modelRow.addText((t) => {
-      t.inputEl.setAttribute("aria-label", translateLabel("模型"));
-      t.setPlaceholder("model-id")
+      t.inputEl.setAttribute("aria-label", translateLabel("model"));
+      t.setPlaceholder(translateLabel("modelExample"))
         .setValue(provider.model)
         .onChange((model) => updateDraft({ model }));
       attachModelPicker(modelRow.controlEl, t.inputEl, {
-        label: translateLabel("获取模型"),
-        chooseLabel: translateLabel("选择模型"),
+        label: translateLabel("fetchModels"),
+        chooseLabel: translateLabel("chooseModel"),
         fetch: () => plugin.fetchModels(draft),
         identity: () => {
           const p = draft;
           return JSON.stringify([p.providerType, p.endpoint, p.apiKey]);
         },
         onSelect: (model) => updateDraft({ model }),
-        error: (message) => notify(message, !!message),
+        error: (error) =>
+          notify(error ? errorMessage(error, locale(), "fetchModelsFailed") : "", !!error),
       });
     });
     modelRow.addButton((b) => {
-      const label = translateLabel("测试连接");
+      const label = translateLabel("testConnection");
       b.setButtonText(label);
       b.buttonEl.classList.add("ul-test-connection");
       const indicator = b.buttonEl.createSpan({
@@ -221,19 +224,22 @@ export function createSettingsTab(plugin: UnderleafPlugin): PluginSettingTab {
         if (value === "pending") indicator.createSpan({ cls: "ul-spinner" });
         else setIcon(indicator, value === "success" ? "check" : "x");
         b.buttonEl.setAttribute("aria-busy", String(value === "pending"));
-        b.buttonEl.setAttribute("aria-label", `${label}: ${detail}`);
+        b.buttonEl.setAttribute(
+          "aria-label",
+          localize("labeledStatus", locale(), { label, detail }),
+        );
         b.buttonEl.title = detail;
       };
       b.onClick(async () => {
         b.setDisabled(true);
         notify("");
-        state("pending", translateLabel("正在测试…"));
+        state("pending", translateLabel("testingConnection"));
         const snapshot = draft;
         try {
           await plugin.testConnection(snapshot);
-          state("success", translateLabel("连接成功"));
+          state("success", translateLabel("connectionSuccess"));
         } catch (error) {
-          state("error", translateLabel(error instanceof Error ? error.message : "连接失败"));
+          state("error", errorMessage(error, locale(), "connectionFailed"));
         } finally {
           b.setDisabled(false);
         }

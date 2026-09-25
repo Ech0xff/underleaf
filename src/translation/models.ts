@@ -1,3 +1,4 @@
+import { createLocalizedError } from "../i18n.ts";
 import { assert, isPlainObject, uniq } from "es-toolkit";
 import { providerConfig, type ProviderType, type Settings } from "../config.ts";
 import { checkHttpStatus, withDeadline, type HttpResponse } from "./http.ts";
@@ -11,7 +12,7 @@ type ModelPage = Readonly<{ ids: readonly string[]; next: string | undefined }>;
 export const parseModelPage = (kind: ProviderType, payload: unknown): ModelPage => {
   const data: Readonly<Record<string, unknown>> = isPlainObject(payload) ? payload : {};
   const items = kind === "google" ? data.models : data.data;
-  assert(Array.isArray(items), "服务未返回模型列表，请手动输入模型名称。");
+  assert(Array.isArray(items), createLocalizedError("modelsInvalid"));
   const ids = uniq(
     items
       .filter(isPlainObject)
@@ -21,7 +22,9 @@ export const parseModelPage = (kind: ProviderType, payload: unknown): ModelPage 
           !Array.isArray(model.supportedGenerationMethods) ||
           model.supportedGenerationMethods.includes("generateContent"),
       )
-      .map((model) => (kind === "google" ? model.name : model.id))
+      .map((model: Readonly<Record<string, unknown>>) =>
+        kind === "google" ? model.name : model.id,
+      )
       .filter((id): id is string => typeof id === "string" && !!id.trim())
       .map((id) => (kind === "google" ? id.trim().replace(/^models\//, "") : id.trim()))
       .filter(Boolean),
@@ -34,9 +37,9 @@ export const parseModelPage = (kind: ProviderType, payload: unknown): ModelPage 
         : undefined;
   assert(
     kind !== "anthropic" || !data.has_more || !!next,
-    "服务返回的模型分页无效，请手动输入模型名称。",
+    createLocalizedError("modelPaginationInvalid"),
   );
-  assert(!next || typeof next === "string", "服务返回的模型分页无效，请手动输入模型名称。");
+  assert(!next || typeof next === "string", createLocalizedError("modelPaginationInvalid"));
   return { ids, next: typeof next === "string" && next ? next : undefined };
 };
 
@@ -71,22 +74,22 @@ export const fetchModels = async (
     cursors: readonly string[] = [],
     ids: readonly string[] = [],
   ): Promise<readonly string[]> => {
-    assert(cursors.length < 100, "模型列表过长，请手动输入模型名称。");
+    assert(cursors.length < 100, createLocalizedError("modelsTooLong"));
     const { url, headers } = modelRequest(settings, cursor);
     const response = await withDeadline(
       () => transport(url, headers),
       Math.max(0, deadline - Date.now()),
     ).catch(() => {
-      throw new Error("获取模型失败，请检查网络或稍后重试。");
+      throw createLocalizedError("fetchModelsFailed");
     });
     checkHttpStatus(response);
     const page = parseModelPage(settings.providerType, response.json);
     const combined = uniq([...ids, ...page.ids]);
     if (!page.next) {
-      assert(combined.length, "没有可用模型，请手动输入模型名称。");
+      assert(combined.length, createLocalizedError("modelsEmpty"));
       return combined;
     }
-    assert(!cursors.includes(page.next), "服务返回的模型分页无效，请手动输入模型名称。");
+    assert(!cursors.includes(page.next), createLocalizedError("modelPaginationInvalid"));
     return readPage(page.next, [...cursors, page.next], combined);
   };
   return readPage();

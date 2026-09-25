@@ -1,7 +1,7 @@
 import { assert, attempt, debounce } from "es-toolkit";
 import type { Transport } from "./translation/http.ts";
 import { createViewportTranslator, type ViewportTranslator } from "./reading/viewport.ts";
-import { localize, resolveLocale } from "./i18n.ts";
+import { createLocalizedError, localize, resolveLocale } from "./i18n.ts";
 import {
   type Command,
   getLanguage,
@@ -81,8 +81,7 @@ export default class UnderleafPlugin extends Plugin {
     this.addSettingTab(createSettingsTab(this));
     this.paragraphCommand = this.addCommand({
       id: "translate-paragraph",
-      name: localize("翻译 / 隐藏鼠标所在段落", this.locale),
-      hotkeys: [{ modifiers: ["Mod", "Alt"], key: "t" }],
+      name: localize("toggleParagraph", this.locale),
       checkCallback: (checking) => {
         const view = this.app.workspace.getActiveViewOfType(MarkdownView);
         if (!view || view.getMode() !== "preview" || !this.pointed || this.pointed.view !== view)
@@ -93,7 +92,7 @@ export default class UnderleafPlugin extends Plugin {
     });
     this.documentCommand = this.addCommand({
       id: "toggle-document-translation",
-      name: localize("开启 / 关闭全文翻译", this.locale),
+      name: localize("toggleDocument", this.locale),
       checkCallback: (checking) => {
         const view = this.app.workspace.getActiveViewOfType(MarkdownView);
         if (!view || view.getMode() !== "preview") return false;
@@ -113,10 +112,16 @@ export default class UnderleafPlugin extends Plugin {
     const now = Date.now();
     if (now - this.lastFailureAt < 4000) return;
     this.lastFailureAt = now;
-    new Notice(`${localize("翻译失败", this.locale)}：${message}`, 5000);
+    new Notice(
+      localize("labeledStatus", this.locale, {
+        label: localize("translationFailedTitle", this.locale),
+        detail: message,
+      }),
+      5000,
+    );
   }
   private cachePath(): string {
-    assert(this.manifest.dir, "Plugin directory is unavailable.");
+    assert(this.manifest.dir, createLocalizedError("pluginDirectoryMissing"));
     return normalizePath(`${this.manifest.dir}/cache.json`);
   }
   private readonly scheduleCacheSave = debounce(() => {
@@ -155,9 +160,9 @@ export default class UnderleafPlugin extends Plugin {
     else await this.flushCache();
     const command = this.paragraphCommand;
     if (command)
-      command.name = `${this.manifest.name}: ${localize("翻译 / 隐藏鼠标所在段落", this.locale)}`;
+      command.name = `${this.manifest.name}: ${localize("toggleParagraph", this.locale)}`;
     if (this.documentCommand)
-      this.documentCommand.name = `${this.manifest.name}: ${localize("开启 / 关闭全文翻译", this.locale)}`;
+      this.documentCommand.name = `${this.manifest.name}: ${localize("toggleDocument", this.locale)}`;
     this.syncPanes();
   }
   async fetchModels(value: Settings): Promise<readonly string[]> {
@@ -215,7 +220,7 @@ export default class UnderleafPlugin extends Plugin {
       });
       const viewport = createViewportTranslator(root, reader, isCurrent);
       const label = () =>
-        localize(viewport.isEnabled() ? "关闭全文翻译" : "开启全文翻译", this.locale);
+        localize(viewport.isEnabled() ? "disableDocument" : "enableDocument", this.locale);
       const fullButton = view.addAction("languages", label(), () => {
         viewport.setEnabled(!viewport.isEnabled());
         fullButton.classList.toggle("is-active", viewport.isEnabled());
