@@ -1,0 +1,42 @@
+{
+  "name": "underleaf",
+  "version": "0.4.9",
+  "private": true,
+  "description": "Translate paragraphs beneath the original text in Reading view, using your preferred AI service without changing your notes.",
+  "homepage": "https://github.com/Ech0xff/underleaf",
+  "bugs": {
+    "url": "https://github.com/Ech0xff/underleaf/issues"
+  },
+  "license": "MIT",
+  "author": "Ech0xff",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ech0xff/underleaf.git"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && node esbuild.mjs",
+    "test": "node --test tests/*.test.ts",
+    "format": "oxfmt --write .",
+    "check": "oxfmt --check . && npm run lint && npm test && npm run build",
+    "lint": "oxlint --deny-warnings src tests esbuild.mjs",
+    "lint:fix": "oxlint --fix src tests esbuild.mjs"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "4.0.62",
+    "@ai-sdk/google": "4.0.79",
+    "@ai-sdk/openai-compatible": "3.0.55",
+    "ai": "7.0.113"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.25.0",
+    "obsidian": "1.13.1",
+    "oxfmt": "0.70.0",
+    "oxlint": "1.85.0",
+    "typescript": "^5.9.0"
+  },
+  "engines": {
+    "node": ">=24.12"
+  }
+}
