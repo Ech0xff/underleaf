@@ -8,7 +8,8 @@ import {
   validateTranslation,
   systemPrompt,
 } from "../src/translation/text.ts";
-import { checkHttpStatus } from "../src/translation/service.ts";
+import { checkHttpStatus } from "../src/translation/http.ts";
+import { parseModelPage } from "../src/translation/models.ts";
 const settings = {
   ...defaults,
   endpoint: "https://api.example.com",
@@ -68,6 +69,9 @@ describe("endpoint and output integrity", () => {
     assert.equal(chunks.join(""), source);
     assert.ok(chunks.every((chunk) => chunk.length <= 80 && !/[\uD800-\uDBFF]$/.test(chunk)));
     assert.deepEqual(chunks.flatMap(tokensIn), tokensIn(source));
+    const narrow = "abc⟪UL_KEEP_0⟫xyz🐱";
+    assert.equal(splitText(narrow, 4).join(""), narrow);
+    assert.throws(() => splitText(narrow, 1));
   });
   it("maps HTTP failures without exposing response bodies", () => {
     assert.throws(
@@ -82,6 +86,38 @@ describe("endpoint and output integrity", () => {
         }),
       /模型不可用/,
     );
+  });
+});
+
+describe("model discovery responses", () => {
+  it("deduplicates IDs and excludes Gemini models that cannot generate text", () => {
+    assert.deepEqual(
+      parseModelPage("google", {
+        models: [
+          { name: "models/chat", supportedGenerationMethods: ["generateContent"] },
+          { name: "models/embedding", supportedGenerationMethods: ["embedContent"] },
+          { name: "models/chat" },
+          null,
+          { name: " " },
+        ],
+        nextPageToken: "next",
+      }),
+      { ids: ["chat"], next: "next" },
+    );
+    assert.deepEqual(parseModelPage("compatible", { data: [{ id: " chat " }, { id: "chat" }] }), {
+      ids: ["chat"],
+      next: undefined,
+    });
+  });
+
+  it("preserves Anthropic pagination and rejects malformed service responses", () => {
+    assert.deepEqual(
+      parseModelPage("anthropic", { data: [{ id: "chat" }], has_more: true, last_id: "cursor" }),
+      { ids: ["chat"], next: "cursor" },
+    );
+    assert.throws(() => parseModelPage("anthropic", { data: [], has_more: true }));
+    assert.throws(() => parseModelPage("google", { models: [], nextPageToken: 42 }));
+    assert.throws(() => parseModelPage("compatible", { data: "invalid" }));
   });
 });
 

@@ -4,7 +4,7 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogle } from "@ai-sdk/google";
 import { systemPrompt } from "./text.ts";
 import { providerConfig, type Settings } from "../config.ts";
-import type { Transport } from "./service.ts";
+import type { Transport } from "./http.ts";
 
 // SDK providers build the protocol; Obsidian's transport handles CORS-free HTTP.
 // Never fall back to the browser's fetch or send credentials to a different host.
@@ -12,16 +12,17 @@ export function createSdkGenerator(transport: Transport) {
   return async (
     source: string,
     settings: Settings,
-  ): Promise<{ text: string; truncated: boolean }> => {
+  ): Promise<Readonly<{ text: string; truncated: boolean }>> => {
     const config = providerConfig(settings.endpoint, settings.providerType);
     const fetchAdapter: typeof fetch = async (input, init) => {
       if (init?.signal?.aborted) throw new DOMException("Aborted", "AbortError");
       const url =
         typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-      if (new URL(url).origin !== new URL(config.baseURL).origin)
-        throw new Error("Unexpected provider origin");
-      if (init?.method !== "POST" || typeof init.body !== "string")
-        throw new Error("Unsupported provider request");
+      assert(new URL(url).origin === new URL(config.baseURL).origin, "Unexpected provider origin");
+      assert(
+        init?.method === "POST" && typeof init.body === "string",
+        "Unsupported provider request",
+      );
       const headers = Object.fromEntries(new Headers(init.headers).entries());
       const response = await transport(url, headers, init.body);
       if (init.signal?.aborted) throw new DOMException("Aborted", "AbortError");
@@ -52,3 +53,4 @@ export function createSdkGenerator(transport: Transport) {
     return { text: result.text, truncated: result.finishReason === "length" };
   };
 }
+import { assert } from "es-toolkit";

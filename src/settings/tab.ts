@@ -6,80 +6,77 @@ import { defaultPromptTemplate } from "../translation/text.ts";
 import { attachModelPicker } from "./model-picker.ts";
 import { createAutoSave } from "./autosave.ts";
 
-export class UnderleafSettings extends PluginSettingTab {
-  private draft!: AppConfig;
-  private customTarget = false;
-  private t(text: string) {
-    return localize(text, resolveLocale(this.draft.uiLanguage, this.plugin.appLanguage));
-  }
-  private readonly autosave: ReturnType<typeof createAutoSave<AppConfig>>;
-  private readonly windows = new WeakSet<Window>();
-  private readonly plugin: UnderleafPlugin;
-  constructor(plugin: UnderleafPlugin) {
-    super(plugin.app, plugin);
-    this.plugin = plugin;
-    this.autosave = createAutoSave(
-      (value) => plugin.applyConfig(value),
-      (error) => {
-        this.notify(
-          error instanceof Error ? error.message : error ? "保存设置失败，请重试。" : "",
-          !!error,
-        );
-      },
-    );
-    plugin.register(() => {
-      void this.autosave.flush();
-      this.autosave.dispose();
-    });
-  }
-  hide() {
-    void this.autosave.flush();
-  }
-  private notify(text: string, error = false) {
-    const el = this.containerEl.querySelector<HTMLElement>(".ul-settings-feedback");
+export function createSettingsTab(plugin: UnderleafPlugin): PluginSettingTab {
+  let draft = normalizeConfig(plugin.config);
+  let customTarget = false;
+  const windows = new WeakSet<Window>();
+  const tab = new (class extends PluginSettingTab {
+    display() {
+      display();
+    }
+    hide() {
+      void autosave.flush();
+    }
+  })(plugin.app, plugin);
+  const autosave = createAutoSave<AppConfig>(
+    (value) => plugin.applyConfig(value),
+    (error) =>
+      notify(
+        error instanceof Error ? error.message : error ? "保存设置失败，请重试。" : "",
+        !!error,
+      ),
+  );
+  plugin.register(() => {
+    void autosave.flush();
+    autosave.dispose();
+  });
+  const translateLabel = (text: string) =>
+    localize(text, resolveLocale(draft.uiLanguage, plugin.appLanguage));
+  function notify(text: string, error = false) {
+    const el = tab.containerEl.querySelector<HTMLElement>(".ul-settings-feedback");
     if (el) {
-      el.textContent = this.t(text);
+      el.textContent = translateLabel(text);
       el.classList.toggle("ul-settings-error", error);
     }
   }
-  private updateDraft(patch: Partial<AppConfig>) {
-    this.draft = { ...this.draft, ...patch };
-    this.notify("");
-    this.autosave.schedule(this.draft);
+  function updateDraft(patch: Partial<AppConfig>) {
+    draft = { ...draft, ...patch };
+    notify("");
+    autosave.schedule(draft);
   }
-  display() {
-    if (!this.draft || !this.autosave.busy()) this.draft = normalizeConfig(this.plugin.config);
-    const win = this.containerEl.ownerDocument.defaultView!;
-    if (!this.windows.has(win)) {
-      this.windows.add(win);
-      this.plugin.registerDomEvent(win, "beforeunload", () => {
-        void this.autosave.flush();
+  function display() {
+    if (!autosave.busy()) draft = normalizeConfig(plugin.config);
+    const win = tab.containerEl.ownerDocument.defaultView!;
+    if (!windows.has(win)) {
+      windows.add(win);
+      plugin.registerDomEvent(win, "beforeunload", () => {
+        void autosave.flush();
       });
     }
-    this.render();
+    render();
   }
-  private row(el: HTMLElement, name: string): Setting {
-    const row = new Setting(el).setName(this.t(name)).setClass("ul-row");
+  function row(el: HTMLElement, name: string): Setting {
+    const row = new Setting(el).setName(translateLabel(name)).setClass("ul-row");
     row.nameEl.addClass("ul-label");
     row.controlEl.addClass("ul-control");
     return row;
   }
 
-  private render() {
-    const el = this.containerEl;
+  function render() {
+    const el = tab.containerEl;
     el.empty();
     el.addClass("ul-settings");
-    new Setting(el).setName(this.t("段下译")).setHeading().setClass("ul-settings-header");
+    new Setting(el).setName("Underleaf").setHeading().setClass("ul-settings-header");
     const panel = el.createDiv({
       cls: "ul-page",
-      attr: { "aria-label": this.t("段下译设置") },
+      attr: { "aria-label": translateLabel("Underleaf 设置") },
     });
     const group = panel.createDiv({ cls: "ul-settings-group" });
     panel.createDiv({ cls: "ul-settings-feedback", attr: { role: "status" } });
-    this.renderConnection(group);
-    this.renderGeneral(group);
+    renderConnection(group);
+    renderGeneral(group);
   }
-  private renderGeneral(parent: HTMLElement) {
+  function renderGeneral(parent: HTMLElement) {
     let el = parent.createDiv({ cls: "ul-section" });
     const targets = [
       "简体中文",
@@ -94,121 +91,121 @@ export class UnderleafSettings extends PluginSettingTab {
       "Русский",
       "العربية",
     ];
-    const isCustom = this.customTarget || !targets.includes(this.draft.target);
-    this.row(el, "翻译语言").addDropdown((d) => {
-      d.selectEl.setAttribute("aria-label", this.t("翻译语言"));
+    const isCustom = customTarget || !targets.includes(draft.target);
+    row(el, "翻译语言").addDropdown((d) => {
+      d.selectEl.setAttribute("aria-label", translateLabel("翻译语言"));
       for (const target of targets) d.addOption(target, target);
-      d.addOption("__custom", this.t("自定义"))
-        .setValue(isCustom ? "__custom" : this.draft.target)
+      d.addOption("__custom", translateLabel("自定义"))
+        .setValue(isCustom ? "__custom" : draft.target)
         .onChange((value) => {
-          this.customTarget = value === "__custom";
-          if (!this.customTarget) this.updateDraft({ target: value });
-          this.render();
+          customTarget = value === "__custom";
+          if (!customTarget) updateDraft({ target: value });
+          render();
         });
     });
     if (isCustom)
-      this.row(el, "自定义语言").addText((t) => {
-        t.inputEl.setAttribute("aria-label", this.t("自定义语言"));
-        t.setPlaceholder(this.t("例如：Italiano"))
-          .setValue(this.draft.target)
+      row(el, "自定义语言").addText((t) => {
+        t.inputEl.setAttribute("aria-label", translateLabel("自定义语言"));
+        t.setPlaceholder(translateLabel("例如：Italiano"))
+          .setValue(draft.target)
           .onChange((target) => {
-            this.updateDraft({ target });
-            const area = this.containerEl.querySelector("textarea");
-            if (area) area.placeholder = defaultPromptTemplate(this.draft);
+            updateDraft({ target });
+            const area = tab.containerEl.querySelector("textarea");
+            if (area) area.placeholder = defaultPromptTemplate(draft);
           });
       });
-    this.row(el, "界面语言").addDropdown((d) => {
-      d.selectEl.setAttribute("aria-label", this.t("界面语言"));
-      d.addOption("auto", this.t("跟随 Obsidian"))
+    row(el, "界面语言").addDropdown((d) => {
+      d.selectEl.setAttribute("aria-label", translateLabel("界面语言"));
+      d.addOption("auto", translateLabel("跟随 Obsidian"))
         .addOption("zh-CN", "简体中文")
         .addOption("en", "English");
-      d.setValue(this.draft.uiLanguage).onChange((uiLanguage) => {
-        this.updateDraft({ uiLanguage: uiLanguage as UILanguage });
-        this.render();
+      d.setValue(draft.uiLanguage).onChange((uiLanguage) => {
+        updateDraft({ uiLanguage: uiLanguage as UILanguage });
+        render();
       });
     });
     const promptSection = parent.createDiv({
       cls: "ul-section",
     });
-    this.row(promptSection, "自定义系统提示词").addTextArea((t) => {
-      t.inputEl.setAttribute("aria-label", this.t("自定义系统提示词"));
-      t.setPlaceholder(defaultPromptTemplate(this.draft))
-        .setValue(this.draft.systemPromptTemplate)
+    row(promptSection, "自定义系统提示词").addTextArea((t) => {
+      t.inputEl.setAttribute("aria-label", translateLabel("自定义系统提示词"));
+      t.setPlaceholder(defaultPromptTemplate(draft))
+        .setValue(draft.systemPromptTemplate)
         .onChange((systemPromptTemplate) => {
-          this.updateDraft({ systemPromptTemplate });
+          updateDraft({ systemPromptTemplate });
         });
     });
     el = parent.createDiv({ cls: "ul-section" });
-    this.row(el, "请求并发数").addText((t) => {
+    row(el, "请求并发数").addText((t) => {
       t.inputEl.type = "number";
       t.inputEl.min = "1";
       t.inputEl.max = "8";
       t.inputEl.step = "1";
-      t.inputEl.setAttribute("aria-label", this.t("请求并发数"));
-      t.setValue(String(this.draft.concurrency)).onChange((v) => {
-        this.updateDraft({ concurrency: Number(v) });
+      t.inputEl.setAttribute("aria-label", translateLabel("请求并发数"));
+      t.setValue(String(draft.concurrency)).onChange((v) => {
+        updateDraft({ concurrency: Number(v) });
       });
     });
-    this.row(el, "超时（秒）").addText((t) => {
+    row(el, "超时（秒）").addText((t) => {
       t.inputEl.type = "number";
       t.inputEl.min = "5";
       t.inputEl.max = "120";
-      t.inputEl.setAttribute("aria-label", this.t("超时（秒）"));
-      t.setValue(String(this.draft.timeoutMs / 1000)).onChange((v) => {
-        this.updateDraft({ timeoutMs: Number(v) * 1000 });
+      t.inputEl.setAttribute("aria-label", translateLabel("超时（秒）"));
+      t.setValue(String(draft.timeoutMs / 1000)).onChange((v) => {
+        updateDraft({ timeoutMs: Number(v) * 1000 });
       });
     });
-    this.row(el, "保存译文缓存").addToggle((t) =>
-      t.setValue(this.draft.cache).onChange((v) => {
-        this.updateDraft({ cache: v });
+    row(el, "保存译文缓存").addToggle((t) =>
+      t.setValue(draft.cache).onChange((v) => {
+        updateDraft({ cache: v });
       }),
     );
   }
-  private renderConnection(parent: HTMLElement) {
+  function renderConnection(parent: HTMLElement) {
     const el = parent.createDiv({ cls: "ul-section" });
-    const provider = this.draft;
-    this.row(el, "接口类型").addDropdown((d) => {
-      d.selectEl.setAttribute("aria-label", this.t("接口类型"));
-      d.addOption("compatible", this.t("OpenAI 兼容"))
+    const provider = draft;
+    row(el, "接口类型").addDropdown((d) => {
+      d.selectEl.setAttribute("aria-label", translateLabel("接口类型"));
+      d.addOption("compatible", translateLabel("OpenAI 兼容"))
         .addOption("anthropic", "Anthropic")
         .addOption("google", "Google Gemini");
       d.setValue(provider.providerType).onChange((type) => {
-        this.updateDraft({ providerType: type as ProviderType });
-        this.render();
+        updateDraft({ providerType: type as ProviderType });
+        render();
       });
     });
-    this.row(el, "URL").addText((t) => {
-      t.inputEl.setAttribute("aria-label", this.t("URL"));
+    row(el, "URL").addText((t) => {
+      t.inputEl.setAttribute("aria-label", translateLabel("URL"));
       t.setPlaceholder(officialOrigin(provider.providerType))
         .setValue(provider.endpoint)
-        .onChange((url) => this.updateDraft({ endpoint: url }));
+        .onChange((url) => updateDraft({ endpoint: url }));
     });
-    this.row(el, "Token").addText((t) => {
+    row(el, "Token").addText((t) => {
       t.inputEl.type = "password";
       t.inputEl.autocomplete = "off";
-      t.inputEl.setAttribute("aria-label", this.t("Token"));
-      t.setValue(provider.apiKey).onChange((token) => this.updateDraft({ apiKey: token }));
+      t.inputEl.setAttribute("aria-label", translateLabel("Token"));
+      t.setValue(provider.apiKey).onChange((token) => updateDraft({ apiKey: token }));
     });
-    const modelRow = this.row(el, "模型");
+    const modelRow = row(el, "模型");
     modelRow.addText((t) => {
-      t.inputEl.setAttribute("aria-label", this.t("模型"));
+      t.inputEl.setAttribute("aria-label", translateLabel("模型"));
       t.setPlaceholder("model-id")
         .setValue(provider.model)
-        .onChange((model) => this.updateDraft({ model }));
+        .onChange((model) => updateDraft({ model }));
       attachModelPicker(modelRow.controlEl, t.inputEl, {
-        label: this.t("获取模型"),
-        chooseLabel: this.t("选择模型"),
-        fetch: () => this.plugin.fetchModels(this.draft),
+        label: translateLabel("获取模型"),
+        chooseLabel: translateLabel("选择模型"),
+        fetch: () => plugin.fetchModels(draft),
         identity: () => {
-          const p = this.draft;
+          const p = draft;
           return JSON.stringify([p.providerType, p.endpoint, p.apiKey]);
         },
-        onSelect: (model) => this.updateDraft({ model }),
-        error: (message) => this.notify(message, !!message),
+        onSelect: (model) => updateDraft({ model }),
+        error: (message) => notify(message, !!message),
       });
     });
     modelRow.addButton((b) => {
-      const label = this.t("测试连接");
+      const label = translateLabel("测试连接");
       b.setButtonText(label);
       b.buttonEl.classList.add("ul-test-connection");
       const indicator = b.buttonEl.createSpan({
@@ -229,18 +226,19 @@ export class UnderleafSettings extends PluginSettingTab {
       };
       b.onClick(async () => {
         b.setDisabled(true);
-        this.notify("");
-        state("pending", this.t("正在测试…"));
-        const snapshot = this.draft;
+        notify("");
+        state("pending", translateLabel("正在测试…"));
+        const snapshot = draft;
         try {
-          await this.plugin.testConnection(snapshot);
-          state("success", this.t("连接成功"));
+          await plugin.testConnection(snapshot);
+          state("success", translateLabel("连接成功"));
         } catch (error) {
-          state("error", this.t(error instanceof Error ? error.message : "连接失败"));
+          state("error", translateLabel(error instanceof Error ? error.message : "连接失败"));
         } finally {
           b.setDisabled(false);
         }
       });
     });
   }
+  return tab;
 }

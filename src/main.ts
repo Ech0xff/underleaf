@@ -1,3 +1,5 @@
+import { assert, attempt, debounce } from "es-toolkit";
+import type { Transport } from "./translation/http.ts";
 import { createViewportTranslator, type ViewportTranslator } from "./reading/viewport.ts";
 import { localize, resolveLocale } from "./i18n.ts";
 import {
@@ -18,12 +20,12 @@ import {
   normalizeConfig,
   validateConfig,
 } from "./config.ts";
-import { UnderleafSettings } from "./settings/tab.ts";
+import { createSettingsTab } from "./settings/tab.ts";
 import { createReader, type Reader } from "./reading/reader.ts";
 import { attachParagraphAction, type ParagraphAction } from "./reading/pointer.ts";
-import { createService, type TranslationService, type Transport } from "./translation/service.ts";
+import { createService, type TranslationService } from "./translation/service.ts";
 
-type Pane = {
+type Pane = Readonly<{
   view: MarkdownView;
   path: string;
   root: HTMLElement;
@@ -31,7 +33,7 @@ type Pane = {
   action: ParagraphAction;
   viewport: ViewportTranslator;
   fullButton: HTMLElement;
-};
+}>;
 const transport: Transport = async (url, headers, body) => {
   const response = await requestUrl({
     url,
@@ -40,12 +42,7 @@ const transport: Transport = async (url, headers, body) => {
     method: "POST",
     throw: false,
   });
-  let json: unknown = null;
-  try {
-    json = JSON.parse(response.text);
-  } catch {
-    /* The service reports malformed responses. */
-  }
+  const [, json] = attempt<unknown>(() => JSON.parse(response.text));
   return { status: response.status, json };
 };
 
@@ -63,7 +60,6 @@ export default class UnderleafPlugin extends Plugin {
   service!: TranslationService;
   private panes = new Map<MarkdownView, Pane>();
   private pointed?: Pane;
-  private cacheTimer?: ReturnType<typeof setTimeout>;
   private writes = Promise.resolve();
   private unloaded = false;
   private paragraphCommand?: Command;
@@ -82,7 +78,7 @@ export default class UnderleafPlugin extends Plugin {
     } catch {
       /* A corrupt optional cache must not block reading or startup. */
     }
-    this.addSettingTab(new UnderleafSettings(this));
+    this.addSettingTab(createSettingsTab(this));
     this.paragraphCommand = this.addCommand({
       id: "translate-paragraph",
       name: localize("翻译 / 隐藏鼠标所在段落", this.locale),
@@ -120,14 +116,12 @@ export default class UnderleafPlugin extends Plugin {
     new Notice(`${localize("翻译失败", this.locale)}：${message}`, 5000);
   }
   private cachePath(): string {
-    return normalizePath(`${this.manifest.dir!}/cache.json`);
+    assert(this.manifest.dir, "Plugin directory is unavailable.");
+    return normalizePath(`${this.manifest.dir}/cache.json`);
   }
-  private scheduleCacheSave() {
-    clearTimeout(this.cacheTimer);
-    this.cacheTimer = setTimeout(() => {
-      void this.flushCache();
-    }, 500);
-  }
+  private readonly scheduleCacheSave = debounce(() => {
+    void this.flushCache();
+  }, 500);
   private flushCache(): Promise<void> {
     const value = JSON.stringify(this.runtimeSettings.cache ? this.service.dump() : []);
     this.writes = this.writes
@@ -174,10 +168,7 @@ export default class UnderleafPlugin extends Plugin {
         method: "GET",
         throw: false,
       });
-      let json: unknown = null;
-      try {
-        json = JSON.parse(response.text);
-      } catch {}
+      const [, json] = attempt<unknown>(() => JSON.parse(response.text));
       return { status: response.status, json };
     });
   }
@@ -212,34 +203,34 @@ export default class UnderleafPlugin extends Plugin {
     for (const view of views) {
       if (this.panes.has(view)) continue;
       const root = view.contentEl.querySelector<HTMLElement>(".markdown-reading-view");
-      const path = view.file!.path;
-      if (!root) continue;
+      const path = view.file?.path;
+      if (!root || !path) continue;
       const isCurrent = () =>
         !this.unloaded && view.file?.path === path && view.getMode() === "preview";
       const reader = createReader(root, this.runtimeSettings, this.service, isCurrent, (message) =>
         this.notifyFailure(message),
       );
-      const pane = { view, path, root, reader } as Pane;
-      pane.action = attachParagraphAction(root, reader, isCurrent, () => {
+      const action = attachParagraphAction(root, reader, isCurrent, () => {
         this.pointed = pane;
       });
-      pane.viewport = createViewportTranslator(root, reader, isCurrent);
+      const viewport = createViewportTranslator(root, reader, isCurrent);
       const label = () =>
-        localize(pane.viewport.isEnabled() ? "关闭全文翻译" : "开启全文翻译", this.locale);
-      pane.fullButton = view.addAction("languages", label(), () => {
-        pane.viewport.setEnabled(!pane.viewport.isEnabled());
-        pane.fullButton.classList.toggle("is-active", pane.viewport.isEnabled());
-        pane.fullButton.setAttribute("aria-pressed", String(pane.viewport.isEnabled()));
-        pane.fullButton.setAttribute("aria-label", label());
+        localize(viewport.isEnabled() ? "关闭全文翻译" : "开启全文翻译", this.locale);
+      const fullButton = view.addAction("languages", label(), () => {
+        viewport.setEnabled(!viewport.isEnabled());
+        fullButton.classList.toggle("is-active", viewport.isEnabled());
+        fullButton.setAttribute("aria-pressed", String(viewport.isEnabled()));
+        fullButton.setAttribute("aria-label", label());
       });
-      pane.fullButton.classList.add("ul-document-toggle");
-      pane.fullButton.setAttribute("aria-pressed", "false");
+      const pane: Pane = { view, path, root, reader, action, viewport, fullButton };
+      fullButton.classList.add("ul-document-toggle");
+      fullButton.setAttribute("aria-pressed", "false");
       this.panes.set(view, pane);
     }
   }
   onunload() {
     this.unloaded = true;
-    clearTimeout(this.cacheTimer);
+    this.scheduleCacheSave.cancel();
     this.clearPanes();
     this.service?.dispose();
     if (this.service) void this.flushCache();

@@ -4,14 +4,13 @@ export function createAutoSave<T>(
   report: (error: unknown | null) => void,
   delay = 350,
 ) {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let pending: { value: T; revision: number } | undefined;
+  let pending: Readonly<{ value: T; revision: number }> | undefined;
   let revision = 0,
     active = 0;
   let disposed = false;
   let chain = Promise.resolve();
   const flush = (): Promise<void> => {
-    clearTimeout(timer);
+    scheduleFlush.cancel();
     const job = pending;
     pending = undefined;
     if (!job) return chain;
@@ -28,21 +27,22 @@ export function createAutoSave<T>(
     });
     return chain;
   };
+  const scheduleFlush = debounce(() => {
+    void flush();
+  }, delay);
   return {
     schedule(value: T) {
       if (disposed) return;
       pending = { value, revision: ++revision };
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        void flush();
-      }, delay);
+      scheduleFlush();
     },
     flush,
     busy: () => !!pending || active > 0,
     dispose: () => {
       disposed = true;
-      clearTimeout(timer);
+      scheduleFlush.cancel();
       pending = undefined;
     },
   };
 }
+import { debounce } from "es-toolkit";

@@ -20,8 +20,7 @@ const english: Record<string, string> = {
   自定义系统提示词: "Custom system prompt",
   "自定义系统提示词必须包含 {{ __TEXT__ }}，用于插入原文。":
     "The custom system prompt must contain {{ __TEXT__ }} to insert the source text.",
-  段下译: "Underleaf",
-  段下译设置: "Underleaf settings",
+  "Underleaf 设置": "Underleaf settings",
   翻译语言: "Translation language",
   界面语言: "Interface language",
   "跟随 Obsidian": "Follow Obsidian",

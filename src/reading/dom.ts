@@ -59,7 +59,7 @@ export function collectBlocks(root: HTMLElement): readonly Block[] {
 export function placeTranslation(block: Block): HTMLElement {
   const el = block.element.ownerDocument.createElement("div");
   el.className = "ul-translation";
-  el.setAttribute("aria-label", "段下译译文");
+  el.setAttribute("aria-label", "Underleaf translation");
   if (block.inside) {
     const list = Array.from(block.element.children).find((child) => child.matches("ul,ol"));
     block.element.insertBefore(el, list ?? null);

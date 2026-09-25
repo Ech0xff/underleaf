@@ -26,7 +26,8 @@
     "@ai-sdk/anthropic": "4.0.62",
     "@ai-sdk/google": "4.0.79",
     "@ai-sdk/openai-compatible": "3.0.55",
-    "ai": "7.0.113"
+    "ai": "7.0.113",
+    "es-toolkit": "1.52.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

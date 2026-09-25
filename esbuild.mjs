@@ -1,13 +1,15 @@
 import { readFile } from "node:fs/promises";
 import { build } from "esbuild";
+import { assert } from "es-toolkit";
 
 const readJson = async (path) => JSON.parse(await readFile(path, "utf8"));
 const manifest = await readJson("manifest.json");
 const pkg = await readJson("package.json");
 const versions = await readJson("versions.json");
-if (pkg.version !== manifest.version || versions[manifest.version] !== manifest.minAppVersion) {
-  throw new Error("Keep package.json, manifest.json, and versions.json in sync.");
-}
+assert(
+  pkg.version === manifest.version && versions[manifest.version] === manifest.minAppVersion,
+  "Keep package.json, manifest.json, and versions.json in sync.",
+);
 
 await build({
   entryPoints: ["src/main.ts"],

@@ -46,11 +46,12 @@ export async function digest(input: string): Promise<string> {
 export const tokensIn = (text: string): readonly string[] => text.match(/⟪UL_KEEP_\d+⟫/g) ?? [];
 export function validateTranslation(source: string, translated: string): string {
   const value = translated.trim();
-  if (!value) throw new Error("服务返回了空译文，请检查模型是否支持文字生成。");
-  const expected = [...tokensIn(source)].sort();
-  const actual = [...tokensIn(value)].sort();
-  if (JSON.stringify(expected) !== JSON.stringify(actual))
-    throw new Error("译文未完整保留代码或公式，已阻止显示。请重试或更换模型。");
+  assert(value, "服务返回了空译文，请检查模型是否支持文字生成。");
+  const occurrences = (text: string) => countBy(tokensIn(text), (token) => token);
+  assert(
+    isEqual(occurrences(source), occurrences(value)),
+    "译文未完整保留代码或公式，已阻止显示。请重试或更换模型。",
+  );
   return value;
 }
 
@@ -61,6 +62,7 @@ export const isTranslatable = (source: string): boolean => {
 
 // Preserve sentence boundaries where possible, but never split an inline-code/math token.
 export function splitText(source: string, limit = 3500): readonly string[] {
+  assert(Number.isInteger(limit) && limit >= 2, "Text limit must be an integer of at least 2.");
   if (source.length <= limit) return [source];
   const atoms = source.match(/⟪UL_KEEP_\d+⟫|[^⟪]+|⟪/g) ?? [source];
   const result: string[] = [];
@@ -77,7 +79,7 @@ export function splitText(source: string, limit = 3500): readonly string[] {
     let remaining = atom;
     while (remaining.length) {
       const room = limit - current.length;
-      if (room === 0) {
+      if (room <= 0) {
         result.push(current);
         current = "";
         continue;
@@ -110,3 +112,4 @@ export function splitText(source: string, limit = 3500): readonly string[] {
   if (current) result.push(current);
   return result.filter((p) => p.trim());
 }
+import { assert, countBy, isEqual } from "es-toolkit";
