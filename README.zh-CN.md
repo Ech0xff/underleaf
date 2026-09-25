@@ -15,9 +15,9 @@
 
 仅支持桌面端，需要 Obsidian 1.8.7 或更高版本。
 
-1. 从 [最新版本](https://github.com/Ech0xff/underleaf/releases/latest) 下载 `main.js`、`manifest.json` 和 `styles.css`。
-2. 将三个文件放入仓库的 `.obsidian/plugins/underleaf/` 文件夹。
-3. 重新加载 Obsidian，在 **设置 → 第三方插件** 中启用 **Underleaf**。
+在 **设置 → 第三方插件 → 浏览** 中搜索并安装 **Underleaf**，或打开[社区商店页面](https://community.obsidian.md/plugins/underleaf)，点击 **Add to Obsidian**。
+
+手动安装：从[最新版本](https://github.com/Ech0xff/underleaf/releases/latest)下载 `main.js`、`manifest.json` 和 `styles.css`，放入仓库的 `.obsidian/plugins/underleaf/` 文件夹，然后重新加载 Obsidian 并启用插件。
 
 ## 使用
 

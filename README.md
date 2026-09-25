@@ -15,9 +15,9 @@ Read your notes in two languages. Underleaf places translations beneath the orig
 
 Desktop only. Requires Obsidian 1.8.7 or later.
 
-1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/Ech0xff/underleaf/releases/latest).
-2. Place the three files in your vault's `.obsidian/plugins/underleaf/` folder.
-3. Reload Obsidian and enable **Underleaf** in **Settings → Community plugins**.
+Install **Underleaf** from **Settings → Community plugins → Browse**, or open its [community listing](https://community.obsidian.md/plugins/underleaf) and choose **Add to Obsidian**.
+
+For manual installation, download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/Ech0xff/underleaf/releases/latest), place them in your vault's `.obsidian/plugins/underleaf/` folder, then reload Obsidian and enable the plugin.
 
 ## Usage
 
